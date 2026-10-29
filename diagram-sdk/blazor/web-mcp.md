@@ -1,7 +1,7 @@
 ---
 layout: post
 title: WebMCP in Blazor Diagram Component | Syncfusion®
-description: Learn how to enable WebMCP in the Blazor Diagram component, use the 18 built-in tools with complete input schemas, register custom tools, and control tool execution from AI agents and MCP clients.
+description: Learn how to enable WebMCP in the Blazor Diagram component, use the 18 built-in tools with complete input schemas, register custom tools, and control tool execution from AI agents and WebMCP clients.
 platform: diagram-sdk
 control: Diagram Component
 documentation: ug
@@ -13,7 +13,7 @@ documentation: ug
 
 ### What is WebMCP?
 
-The Web Model Context Protocol (WebMCP) lets a web page expose its functionality as a set of named **tools** that AI assistants, LLM extensions, and MCP clients running in the browser can discover and call via standard browser contracts (`document.modelContext.registerTool`). Each tool exposes a name, a human-readable description, and a JSON input schema that describes the arguments it accepts.
+The Web Model Context Protocol (WebMCP) lets a web page expose its functionality as a set of named **tools** that AI assistants, LLM extensions, and WebMCP clients running in the browser can discover and call via standard browser contracts (`document.modelContext.registerTool`). Each tool exposes a name, a human-readable description, and a JSON input schema that describes the arguments it accepts.
 
 ### Benefits of enabling WebMCP in the Diagram component
 
@@ -23,10 +23,10 @@ The Web Model Context Protocol (WebMCP) lets a web page expose its functionality
 * **Lifecycle interception**: Every tool call passes through the `OnWebMcpExecute` event, allowing your application to inspect arguments, enforce security rules, cancel execution, trigger native browser confirmation dialogs, or override results.
 * **Browser namespace prefixing**: Use `DiagramWebMcpSettings.Name` to namespace tool sets for multiple diagram instances on the same page.
 
-### How MCP clients and AI agents interact with diagrams
+### How WebWebMCP clients and AI agents interact with diagrams
 
 1. When WebMCP is enabled, the Diagram component registers its tools with the browser's model context.
-2. An MCP client or AI agent discovers the registered tools, inspecting their canonical descriptions and input schemas.
+2. A WebMCP client or AI agent discovers the registered tools, inspecting their canonical descriptions and input schemas.
 3. The agent invokes a tool by passing a structured JSON argument payload.
 4. Before any tool executes, the Diagram raises the [OnWebMcpExecute](#handle-tool-execution) callback.
 5. In the callback, your application can inspect arguments, cancel the call, request browser user confirmation, or provide a custom response.
