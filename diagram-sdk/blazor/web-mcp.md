@@ -1,7 +1,7 @@
 ---
 layout: post
 title: WebMCP in Blazor Diagram Component | Syncfusion®
-description: Learn how to enable WebMCP in the Blazor Diagram component, use the built-in tools, register custom tools, and control tool execution from MCP clients and AI agents.
+description: Learn how to enable WebMCP in the Blazor Diagram component, use the 18 built-in tools with complete input schemas, register custom tools, and control tool execution from AI agents and MCP clients.
 platform: diagram-sdk
 control: Diagram Component
 documentation: ug
@@ -13,188 +13,482 @@ documentation: ug
 
 ### What is WebMCP?
 
-The Web Model Context Protocol (WebMCP) lets a web page expose its functionality as a set of named **tools** that MCP clients and AI agents running in the browser can discover and call. Each tool has a name, a description, and a JSON input schema that tells the caller which arguments it accepts.
+The Web Model Context Protocol (WebMCP) lets a web page expose its functionality as a set of named **tools** that AI assistants, LLM extensions, and MCP clients running in the browser can discover and call via standard browser contracts (`document.modelContext.registerTool`). Each tool exposes a name, a human-readable description, and a JSON input schema that describes the arguments it accepts.
 
 ### Benefits of enabling WebMCP in the Diagram component
 
-* Built-in tools cover the common diagram operations, such as creating nodes and connectors, moving, aligning, grouping, deleting, applying layouts, zooming, and exporting. No additional code is required to expose them.
-* AI agents can read and modify the diagram through structured tool calls instead of simulating pointer or keyboard interactions.
-* The application keeps full control. Every tool call can be inspected, cancelled, confirmed by the user, or answered with a custom result before it runs.
-* Application-specific operations can be exposed as custom tools alongside the built-in ones.
+* **18 built-in tools** cover all primary diagramming tasks: discovering shapes, creating nodes and connectors, moving, selecting, editing mode switching, aligning, deleting, undo/redo, clipboard operations, import/export, z-ordering, panning/zooming, grouping, managing labels and ports, applying automatic layouts, and generating UML sequence diagrams.
+* **Declarative configuration**: Selectively expose, rename, re-describe, or disable built-in tools using simple Blazor markup.
+* **Custom AI tools**: Register application-specific tools with custom JSON schemas and handle them directly in C#.
+* **Lifecycle interception**: Every tool call passes through the `OnWebMcpExecute` event, allowing your application to inspect arguments, enforce security rules, cancel execution, trigger native browser confirmation dialogs, or override results.
+* **Browser namespace prefixing**: Use `DiagramWebMcpSettings.Name` to namespace tool sets for multiple diagram instances on the same page.
 
 ### How MCP clients and AI agents interact with diagrams
 
-1. The Diagram component registers its tools with the browser when WebMCP is enabled.
-2. An MCP client or AI agent discovers the registered tools and reads their descriptions and input schemas.
-3. The agent calls a tool with a JSON arguments object.
-4. The Diagram component raises the [OnWebMcpExecute](#handle-tool-execution) callback, so the application can inspect, cancel, confirm, or override the call.
-5. If the call is not cancelled or overridden, the tool runs against the diagram and the result is returned to the agent.
+1. When WebMCP is enabled, the Diagram component registers its tools with the browser's model context.
+2. An MCP client or AI agent discovers the registered tools, inspecting their canonical descriptions and input schemas.
+3. The agent invokes a tool by passing a structured JSON argument payload.
+4. Before any tool executes, the Diagram raises the [OnWebMcpExecute](#handle-tool-execution) callback.
+5. In the callback, your application can inspect arguments, cancel the call, request browser user confirmation, or provide a custom response.
+6. If the call is allowed and not overridden, the Diagram executes the command and returns the JSON result to the caller.
+
+---
 
 ## Enable WebMCP
 
-Set the [EnableWebMcp](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.SfDiagramComponent.html#Syncfusion_Blazor_Diagram_SfDiagramComponent_EnableWebMcp) property of the `SfDiagramComponent` to `true`.
+Set the [EnableWebMcp](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.SfDiagramComponent.html#Syncfusion_Blazor_Diagram_SfDiagramComponent_EnableWebMcp) property of `SfDiagramComponent` to `true` and add a `<DiagramWebMcpSettings>` tag to configure the toolset namespace:
 
 ```cshtml
 @using Syncfusion.Blazor.Diagram
 
-<SfDiagramComponent Height="600px" EnableWebMcp="true">
+<SfDiagramComponent Width="100%" Height="700px" EnableWebMcp="true">
+    <DiagramWebMcpSettings Name="diagram" />
 </SfDiagramComponent>
 ```
 
-* `EnableWebMcp` is `false` by default. When it is `false`, no tools are registered.
-* When it is `true`, the diagram registers its tools so that MCP clients and AI agents can discover them.
-* **All built-in tools become available automatically.** You do not need to declare them. To rename, describe differently, or hide individual built-in tools, use [DiagramWebMcpSettings](#customize-built-in-tools).
-* Registered tool names in the browser are prefixed with the `Name` of `DiagramWebMcpSettings` (for example, `myDiagram_getDiagramCatalog`). `GetWebMcpToolsAsync` and `OnWebMcpExecute` use the bare name without the prefix.
-* Tools are unregistered when `EnableWebMcp` is set to `false` or the component is disposed.
+* `EnableWebMcp` defaults to `false`. When disabled, no tools are exposed to the browser.
+* When `EnableWebMcp="true"`, all **18 built-in tools** are automatically registered with their canonical names, descriptions, and input schemas.
+* The `Name` property of `DiagramWebMcpSettings` defines the prefix used when registering tools in the browser (e.g., `Name="diagram"` produces tool names like `diagram_createDiagramNode` and `diagram_getDiagramCatalog`).
+* `GetWebMcpToolsAsync` and the `OnWebMcpExecute` callback receive the **base tool name** without the registration prefix.
+* When the diagram component is disposed or `EnableWebMcp` is set to `false`, the tools are automatically unregistered from the browser context.
 
-## Built-in WebMCP Tools
+---
 
-The built-in tools are identified by the [DiagramWebMcpToolCommand](#diagramwebmcptoolcommand) enum. The registered tool name is the camel-case form of the enum member name, for example `DeleteFromDiagram` is registered as `deleteFromDiagram`.
+## Selective Tool Configuration
 
-### Diagram Information Tools
-
-| Tool name | Command | Description | Typical usage |
-|---|---|---|---|
-| `getDiagramCatalog` | `GetDiagramCatalog` | Returns the supported diagram shapes, enums, and shape-specific properties. | An agent calls this first to learn which shapes and property values it can use before creating nodes. |
-| `manageNodeSelection` | `ManageNodeSelection` | Selects, clears, or queries the diagram selection. | Find out which objects are selected, or select objects before running an operation on them. |
-
-### Diagram Creation Tools
-
-| Tool name | Command | Description | Typical usage |
-|---|---|---|---|
-| `createDiagramNode` | `CreateDiagramNode` | Creates one or more diagram nodes. | Generate a flowchart or organization chart from a text description. |
-| `createDiagramConnector` | `CreateDiagramConnector` | Creates a connector between two existing nodes or ports. | Link nodes created earlier. |
-| `createUmlSequenceDiagram` | `CreateUmlSequenceDiagram` | Creates or updates a UML sequence diagram model. | Build a sequence diagram from a described interaction. |
-| `applyLayoutToNodes` | `ApplyLayoutToNodes` | Applies a layout to the diagram nodes and connectors. | Arrange generated nodes automatically. |
-
-### Diagram Modification Tools
-
-| Tool name | Command | Description | Typical usage |
-|---|---|---|---|
-| `dragNode` | `DragNode` | Moves an existing node or connector by a translation. | Reposition an element. |
-| `arrangeAndAlignObjects` | `ArrangeAndAlignObjects` | Aligns, distributes, or resizes selected objects. | Tidy up selected nodes. |
-| `arrangeZOrder` | `ArrangeZOrder` | Changes the stacking order of selected objects. | Bring an element to the front or send it to the back. |
-| `manageGroupsAndHierarchies` | `ManageGroupsAndHierarchies` | Groups or ungroups objects in place or by ID. | Combine related nodes into a group. |
-| `manageAnnotationsAndLabels` | `ManageAnnotationsAndLabels` | Adds, updates, or removes annotations or labels on a node or connector. | Set or change element text. |
-| `managePorts` | `ManagePorts` | Adds, removes, or distributes ports on a node or connector. | Add connection points to a node. |
-| `deleteFromDiagram` | `DeleteFromDiagram` | Deletes the specified, selected, or all diagram objects. | Remove elements. This is a destructive tool, so consider a [confirmation dialog](#show-confirmation-dialog). |
-
-### Diagram Management Tools
-
-| Tool name | Command | Description | Typical usage |
-|---|---|---|---|
-| `enableEditingMode` | `EnableEditingMode` | Enables or disables diagram editing in boolean or string mode. | Switch the diagram between read-only and editable. |
-| `manageUndoRedo` | `ManageUndoRedo` | Performs undo, redo, history grouping, or history clearing. | Revert an agent's change. |
-| `manageClipboardOperations` | `ManageClipboardOperations` | Performs copy, cut, and paste on the current selection. | Duplicate parts of a diagram. |
-| `navigateAndZoomDiagram` | `NavigateAndZoomDiagram` | Navigates the viewport by zooming, panning, or fitting content. | Fit the whole diagram in view after generation. |
-
-### Import/Export Tools
-
-| Tool name | Command | Description | Typical usage |
-|---|---|---|---|
-| `exportAndImportDiagrams` | `ExportAndImportDiagrams` | Saves, exports, imports, loads, or prints the diagram. | Save the diagram to JSON, export it as an image, or load a saved diagram. |
-
-### Customize built-in tools
-
-Declare [DiagramWebMcpSettings](#diagramwebmcpsettings) as a child of the diagram to adjust built-in tools. When no entries are declared, every built-in tool is registered. A built-in entry can override the exposed `Name` and `Description`, or remove the tool from registration by setting `Enabled` to `false`. Dispatch is based on the `Command`, so renaming a tool does not change its behavior.
+To expose only specific tools, rename them, rewrite their descriptions for an LLM prompt, or disable destructive actions, declare child `<DiagramWebMcpTool>` elements inside `<DiagramWebMcpTools>`:
 
 ```cshtml
 @using Syncfusion.Blazor.Diagram
 
-<SfDiagramComponent Height="600px" EnableWebMcp="true">
-    <DiagramWebMcpSettings>
+<SfDiagramComponent Width="100%" Height="700px" EnableWebMcp="true">
+    <DiagramWebMcpSettings Name="flowchart">
         <DiagramWebMcpTools>
-            <DiagramWebMcpTool Command="DiagramWebMcpToolCommand.DeleteFromDiagram" Enabled="false" />
-            <DiagramWebMcpTool Command="DiagramWebMcpToolCommand.CreateDiagramNode"
-                               Name="addShape"
-                               Description="Adds one or more shapes to the diagram." />
+            <!-- Discover diagram shapes and capabilities -->
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.GetDiagramCatalog" />
+
+            <!-- Customize names and descriptions for the AI agent -->
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.CreateDiagramNode"
+                               Name="addProcessNode"
+                               Description="Creates a flowchart step in the diagram canvas." />
+
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.CreateDiagramConnector"
+                               Name="linkSteps"
+                               Description="Connects two process steps using orthogonal connectors." />
+
+            <!-- Enable automatic layout calculation -->
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.ApplyLayoutToNodes" />
+
+            <!-- Explicitly disable destructive operations -->
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.DeleteFromDiagram"
+                               Enabled="false" />
         </DiagramWebMcpTools>
     </DiagramWebMcpSettings>
 </SfDiagramComponent>
 ```
 
+> **Note:** Dispatch uses the `Command` enum, not the public tool name. Renaming a built-in tool changes its name in the browser and in `args.Name`, but retains built-in execution behavior. Setting `Enabled="false"` omits the tool from registration.
+
+---
+
+## Built-in WebMCP Tools
+
+The Diagram component provides **18 built-in tools** identified by the `DiagramWebMcpToolCommand` enum:
+
+| Tool Name | Enum Member | Annotations | Purpose |
+|---|---|---|---|
+| `getDiagramCatalog` | `GetDiagramCatalog` | Read-only, Idempotent | Discovers supported shapes, enums, BPMN/UML types, swimlane capabilities, and styling properties. |
+| `createDiagramNode` | `CreateDiagramNode` | Standard | Creates one or more nodes with shapes, geometry, headers, styling, and annotations. |
+| `createDiagramConnector` | `CreateDiagramConnector` | Standard | Creates straight, orthogonal, or bezier connectors between nodes or ports. |
+| `dragNode` | `DragNode` | Standard | Moves existing nodes or connectors by relative coordinate offsets (`tx`, `ty`). |
+| `manageNodeSelection` | `ManageNodeSelection` | Idempotent | Selects, inspects, or clears diagram selection (`single`, `multiple`, `all`, `none`). |
+| `enableEditingMode` | `EnableEditingMode` | Destructive, Idempotent | Toggles diagram between read-only and interactive read-write modes. |
+| `arrangeAndAlignObjects` | `ArrangeAndAlignObjects` | Standard | Aligns, distributes, or resizes selected diagram objects. |
+| `deleteFromDiagram` | `DeleteFromDiagram` | Destructive | Deletes specified objects, selected objects, or all diagram elements. |
+| `manageUndoRedo` | `ManageUndoRedo` | Destructive | Triggers undo, redo, starts/ends history groups, or clears history stacks. |
+| `manageClipboardOperations` | `ManageClipboardOperations` | Destructive | Performs clipboard copy, cut, or paste on the current selection. |
+| `exportAndImportDiagrams` | `ExportAndImportDiagrams` | Destructive | Exports/imports JSON or Mermaid formats; exports PNG, JPEG, SVG, or triggers print. |
+| `arrangeZOrder` | `ArrangeZOrder` | Standard | Changes object stacking order (`BringToFront`, `SendToBack`, `BringForward`, `SendBackward`). |
+| `navigateAndZoomDiagram` | `NavigateAndZoomDiagram` | Idempotent | Navigates the viewport: pan, zoom, reset, fit to page, or bring into view. |
+| `manageGroupsAndHierarchies` | `ManageGroupsAndHierarchies` | Standard | Groups or ungroups diagram objects in place or by explicit parent/child IDs. |
+| `manageAnnotationsAndLabels` | `ManageAnnotationsAndLabels` | Standard | Adds, updates, or deletes labels and annotations on nodes or connectors. |
+| `managePorts` | `ManagePorts` | Standard | Adds, removes, or positions connection ports on nodes or connectors. |
+| `applyLayoutToNodes` | `ApplyLayoutToNodes` | Standard | Applies automatic layout algorithms (Hierarchical, Radial, MindMap, OrgChart, etc.). |
+| `createUmlSequenceDiagram` | `CreateUmlSequenceDiagram` | Standard | Creates a complete UML sequence diagram with participants, messages, and fragments. |
+
+---
+
+## Built-in Tool Payloads & Input Schemas
+
+Each built-in tool accepts a structured JSON payload. Below are the canonical argument payloads for each tool.
+
+### 1. `getDiagramCatalog`
+Discovers supported shapes, enums, categories, and properties before generating diagram elements.
+
+```json
+{
+  "category": "flow"
+}
+```
+* **Supported categories:** `"all"`, `"basic"`, `"flow"`, `"bpmn"`, `"uml"`, `"swimlane"`, `"connector"`.
+
+### 2. `createDiagramNode`
+Creates one or more diagram nodes with shape details, positions, dimensions, styling, and annotations.
+
+```json
+{
+  "nodes": [
+    {
+      "nodeId": "node1",
+      "shapeFamily": "basic",
+      "shape": "Rectangle",
+      "x": 200,
+      "y": 150,
+      "width": 120,
+      "height": 60,
+      "label": "Process Step",
+      "style": { "fill": "#E0E9FD", "strokeColor": "#3E63DD", "strokeWidth": 2 },
+      "annotations": [
+        {
+          "content": "Process Step",
+          "annotationStyle": { "bold": true, "color": "#1C2024" }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 3. `createDiagramConnector`
+Creates straight, orthogonal, or bezier connectors between two nodes or connection ports.
+
+```json
+{
+  "connectors": [
+    {
+      "connectorId": "connector1",
+      "sourceId": "node1",
+      "targetId": "node2",
+      "lineType": "Orthogonal",
+      "label": "Yes",
+      "lineColor": "#3E63DD",
+      "lineWidth": 2,
+      "targetDecorator": "Arrow"
+    }
+  ]
+}
+```
+
+### 4. `dragNode`
+Translates an existing node or connector by relative coordinate offsets.
+
+```json
+{
+  "nodeId": "node1",
+  "tx": 50,
+  "ty": -30
+}
+```
+
+### 5. `manageNodeSelection`
+Selects specific objects by ID, selects all objects, or clears the diagram selection.
+
+```json
+{
+  "objectIds": ["node1", "node2"],
+  "selectMode": "multiple"
+}
+```
+* **Select modes:** `"single"`, `"multiple"`, `"all"`, `"none"`.
+
+### 6. `enableEditingMode`
+Toggles diagram interactivity between read-only and interactive read-write modes.
+
+```json
+{
+  "mode": "readOnly"
+}
+```
+* **Modes:** `"readOnly"`, `"readWrite"` (or boolean `"enabled": false`).
+
+### 7. `arrangeAndAlignObjects`
+Aligns, distributes, or resizes multiple selected diagram elements.
+
+```json
+{
+  "objectIds": ["node1", "node2", "node3"],
+  "alignMode": "Left",
+  "distributeMode": "EqualSpacingHorizontal"
+}
+```
+
+### 8. `deleteFromDiagram`
+Deletes specified objects, currently selected elements, or all elements from the canvas.
+
+```json
+{
+  "deleteMode": "selected"
+}
+```
+* **Delete modes:** `"specified"` (requires `objectIds`), `"selected"`, `"all"`.
+
+### 9. `manageUndoRedo`
+Performs history operations on the diagram.
+
+```json
+{
+  "action": "undo"
+}
+```
+* **Actions:** `"undo"`, `"redo"`, `"startGroup"`, `"endGroup"`, `"clearHistory"`.
+
+### 10. `manageClipboardOperations`
+Executes clipboard copy, cut, or paste on selected diagram elements.
+
+```json
+{
+  "operation": "copy"
+}
+```
+* **Operations:** `"copy"`, `"cut"`, `"paste"`.
+
+### 11. `exportAndImportDiagrams`
+Exports diagram graphics, saves/loads JSON or Mermaid schema, or prints the canvas.
+
+```json
+{
+  "operation": "export",
+  "format": "png",
+  "filename": "ArchitectureDiagram",
+  "download": true,
+  "fitToPage": true
+}
+```
+* **Operations:** `"save"`, `"export"`, `"load"`, `"import"`, `"print"`.  
+* **Formats:** `"json"`, `"mermaid"`, `"png"`, `"jpg"`, `"jpeg"`, `"svg"`.
+
+### 12. `arrangeZOrder`
+Changes visual stacking order for selected elements.
+
+```json
+{
+  "objectIds": ["node1"],
+  "order": "BringToFront"
+}
+```
+* **Orders:** `"BringToFront"`, `"SendToBack"`, `"BringForward"`, `"SendBackward"`.
+
+### 13. `navigateAndZoomDiagram`
+Pans, zooms, resets viewport, or centers on specific objects.
+
+```json
+{
+  "action": "zoom",
+  "zoomFactor": 1.2
+}
+```
+* **Actions:** `"zoom"`, `"pan"`, `"fitToPage"`, `"reset"`, `"bringIntoView"`.
+
+### 14. `manageGroupsAndHierarchies`
+Groups or ungroups elements by ID or current selection.
+
+```json
+{
+  "operation": "group",
+  "parentId": "group1",
+  "childIds": ["node1", "node2"]
+}
+```
+* **Operations:** `"group"`, `"ungroup"`.
+
+### 15. `manageAnnotationsAndLabels`
+Adds, updates, or deletes textual labels on nodes or connectors.
+
+```json
+{
+  "objectId": "node1",
+  "operation": "add",
+  "labelText": "Approved",
+  "fontSize": 14,
+  "color": "#12B886",
+  "bold": true
+}
+```
+* **Operations:** `"add"`, `"update"`, `"delete"`.
+
+### 16. `managePorts`
+Adds or removes connection ports on nodes or connectors.
+
+```json
+{
+  "nodeId": "node1",
+  "action": "add",
+  "portDefinitions": [
+    {
+      "id": "port1",
+      "offset": { "x": 0.5, "y": 1.0 },
+      "visibility": "Visible",
+      "shape": "Circle",
+      "width": 10,
+      "height": 10
+    }
+  ]
+}
+```
+* **Actions:** `"add"`, `"remove"`.
+
+### 17. `applyLayoutToNodes`
+Executes automatic diagram layout algorithms across nodes and connectors.
+
+```json
+{
+  "layoutType": "HierarchicalTree",
+  "orientation": "TopToBottom",
+  "horizontalSpacing": 40,
+  "verticalSpacing": 50
+}
+```
+* **Layout types:** `"HierarchicalTree"`, `"OrganizationalChart"`, `"MindMap"`, `"ComplexHierarchicalTree"`, `"RadialTree"`, `"Flowchart"`, `"ForceDirectedTree"`.
+
+### 18. `createUmlSequenceDiagram`
+Builds a complete UML sequence diagram with lifelines, messages, and interaction fragments.
+
+```json
+{
+  "participants": [
+    { "id": "client", "content": "Web Client", "isActor": true },
+    { "id": "api", "content": "API Gateway", "isActor": false }
+  ],
+  "messages": [
+    {
+      "id": "msg1",
+      "content": "POST /order",
+      "fromParticipantId": "client",
+      "toParticipantId": "api",
+      "messageType": "synchronous"
+    }
+  ],
+  "fragments": [],
+  "spaceBetweenParticipants": 150
+}
+```
+
+---
+
 ## Retrieve Registered Tools
 
-The [GetWebMcpToolsAsync](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.SfDiagramComponent.html#Syncfusion_Blazor_Diagram_SfDiagramComponent_GetWebMcpToolsAsync_System_Collections_Generic_IEnumerable_System_String__) method of `SfDiagramComponent` returns the metadata of the tools currently registered for the diagram.
-
-* **Purpose:** Inspect which built-in and custom tools are available, including any renamed or disabled tools.
-* **Parameter:** `toolNames` (optional `IEnumerable<string>`). When provided, only the tools with the given names are returned.
-* **Return value:** A task that returns a read-only list of tool metadata. Each item exposes `Name`, `Description`, and `InputSchema`. `Name` is the bare tool name, without any registration prefix.
-
-The following example lists the registered tools.
+To query the tools currently registered with the diagram at runtime, call the `GetWebMcpToolsAsync` method on the `SfDiagramComponent` instance.
 
 ```cshtml
 @using Syncfusion.Blazor.Diagram
 
-<button @onclick="ListToolsAsync">List tools</button>
-
-<SfDiagramComponent @ref="_diagram" Height="600px" EnableWebMcp="true">
+<SfDiagramComponent @ref="_diagram" Width="100%" Height="600px" EnableWebMcp="true">
+    <DiagramWebMcpSettings Name="diagram" />
 </SfDiagramComponent>
 
-<ul>
-    @foreach (var tool in _tools)
-    {
-        <li><b>@tool.Name</b> - @tool.Description</li>
-    }
-</ul>
+<button @onclick="EnumerateToolsAsync">List Registered Tools</button>
 
 @code {
-    private SfDiagramComponent _diagram;
-    private IReadOnlyList<IDiagramWebMcpTool> _tools = new List<IDiagramWebMcpTool>();
+    private SfDiagramComponent? _diagram;
 
-    private async Task ListToolsAsync()
+    private async Task EnumerateToolsAsync()
     {
-        _tools = await _diagram.GetWebMcpToolsAsync();
+        if (_diagram == null) return;
+
+        // Retrieve all registered WebMCP tools
+        IReadOnlyList<IDiagramWebMcpTool> tools = await _diagram.GetWebMcpToolsAsync();
+
+        foreach (IDiagramWebMcpTool tool in tools)
+        {
+            Console.WriteLine($"Tool: {tool.Name}");
+            Console.WriteLine($"Description: {tool.Description}");
+            Console.WriteLine($"Input Schema: {tool.InputSchema}");
+        }
+
+        // Optionally filter by specific tool names
+        IReadOnlyList<IDiagramWebMcpTool> filtered =
+            await _diagram.GetWebMcpToolsAsync(new[] { "createDiagramNode", "deleteFromDiagram" });
     }
 }
 ```
 
-To retrieve specific tools only, pass their names.
+* **Method signature:** `Task<IReadOnlyList<IDiagramWebMcpTool>> GetWebMcpToolsAsync(IEnumerable<string>? toolNames = null)`
+* **Return value:** A read-only collection of `IDiagramWebMcpTool` metadata exposing `Name`, `Description`, and `InputSchema`.
+* The returned `Name` is the base tool name (e.g., `createDiagramNode`), excluding the registration namespace prefix.
 
-```csharp
-var tools = await _diagram.GetWebMcpToolsAsync(new[] { "createDiagramNode", "deleteFromDiagram" });
-```
-
-> Call this method after the diagram has rendered, for example from a button click or `OnAfterRenderAsync`. Tools are registered after the first render.
+---
 
 ## Create Custom Tools
 
-Register an application-specific tool by adding a [DiagramWebMcpTool](#diagramwebmcptool) with `Command="DiagramWebMcpToolCommand.Custom"` inside `DiagramWebMcpSettings`. A custom tool requires:
+You can register application-specific tools by adding a `<DiagramWebMcpTool>` with `Command="@DiagramWebMcpToolCommand.Custom"`. Custom tools require:
 
-* **Name** - a unique tool name.
-* **Description** - explains to the agent what the tool does and when to use it.
-* **InputSchema** - a JSON Schema string that describes the arguments.
+* **Name:** Unique tool identifier exposed to the caller.
+* **Description:** Plain-text description used by AI agents to decide when to call the tool.
+* **InputSchema:** Valid JSON Schema string describing the expected input parameters.
 
-A custom tool has no built-in behavior. Its execution is handled in the [OnWebMcpExecute](#handle-tool-execution) callback, which must set `Result`.
+Execution of custom tools is handled inside the [OnWebMcpExecute](#handle-tool-execution) callback, where your application must assign the JSON response string to `args.Result`.
 
 ```cshtml
+@using System.Text.Json
 @using Syncfusion.Blazor.Diagram
 
-<SfDiagramComponent Height="600px" EnableWebMcp="true" OnWebMcpExecute="HandleWebMcpExecuteAsync">
-    <DiagramWebMcpSettings>
+<SfDiagramComponent @ref="_diagram"
+                    Width="100%"
+                    Height="600px"
+                    EnableWebMcp="true"
+                    OnWebMcpExecute="HandleWebMcpExecuteAsync">
+    <DiagramWebMcpSettings Name="app">
         <DiagramWebMcpTools>
-            <DiagramWebMcpTool Command="DiagramWebMcpToolCommand.Custom"
-                               Name="getDiagramSummary"
-                               Description="Returns a short summary of the diagram."
-                               InputSchema="@_summarySchema" />
+            <!-- Built-in tool -->
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.GetDiagramCatalog" />
+
+            <!-- Custom Application Tool -->
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.Custom"
+                               Name="getDiagramStatistics"
+                               Description="Returns node and connector counts for the current diagram."
+                               InputSchema="@_statsSchema" />
         </DiagramWebMcpTools>
     </DiagramWebMcpSettings>
 </SfDiagramComponent>
 
 @code {
-    private const string _summarySchema = """
+    private SfDiagramComponent? _diagram;
+
+    private readonly string _statsSchema = JsonSerializer.Serialize(new
     {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-    """;
+        type = "object",
+        properties = new
+        {
+            includeSelectedCount = new
+            {
+                type = "boolean",
+                description = "Whether to include count of selected objects."
+            }
+        }
+    });
 
     private Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
     {
-        if (args.Command == DiagramWebMcpToolCommand.Custom && args.Name == "getDiagramSummary")
+        if (args.Command == DiagramWebMcpToolCommand.Custom && args.Name == "getDiagramStatistics")
         {
-            args.Result = "{\"success\": true, \"message\": \"Summary is available.\"}";
+            bool includeSelected = false;
+            if (args.Arguments != null &&
+                args.Arguments.TryGetValue("includeSelectedCount", out object? val) &&
+                val is bool b)
+            {
+                includeSelected = b;
+            }
+
+            var response = new
+            {
+                totalNodes = _diagram?.Nodes.Count ?? 0,
+                totalConnectors = _diagram?.Connectors.Count ?? 0,
+                selectedNodes = includeSelected ? (_diagram?.SelectionSettings?.Nodes?.Count ?? 0) : 0,
+                success = true
+            };
+
+            // Custom tools must assign the serialized response string to args.Result
+            args.Result = JsonSerializer.Serialize(response);
         }
 
         return Task.CompletedTask;
@@ -202,305 +496,387 @@ A custom tool has no built-in behavior. Its execution is handled in the [OnWebMc
 }
 ```
 
+---
+
 ## Handle Tool Execution
 
-The [OnWebMcpExecute](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.SfDiagramComponent.html#Syncfusion_Blazor_Diagram_SfDiagramComponent_OnWebMcpExecute) callback is triggered **before a built-in or custom tool executes**. It receives a [DiagramWebMcpExecuteEventArgs](#diagramwebmcpexecuteeventargs) object, which lets the application decide what happens next:
+The `OnWebMcpExecute` event is triggered before any tool (built-in or custom) executes. The callback receives a `DiagramWebMcpExecuteEventArgs` instance with the following properties:
 
-| Member | Use it to |
-|---|---|
-| `Command` | Identify the built-in command, or `Custom` for a custom tool. |
-| `Name` | Read the tool name. For custom tools this is the name you supplied. For built-in tools it is the command enum member name, for example `DeleteFromDiagram`. |
-| `Arguments` | Read the arguments sent by the caller. Whole numbers are provided as `long`, fractional numbers as `double`, and objects and arrays as dictionaries and lists. |
-| `Cancel` | Stop the tool from running. |
-| `ShowConfirmationDialog` | Ask the user to confirm before a built-in tool runs. |
-| `CancellationResponse` | Set the message returned to the caller when execution is cancelled or confirmation is denied. |
-| `Result` | Return a JSON payload to the caller. Required for custom tools. For built-in tools it replaces the built-in result. |
+| Property | Type | Direction | Description |
+|---|---|---|---|
+| `Command` | `DiagramWebMcpToolCommand` | Read-only | The command being executed (`Custom` or a built-in command). |
+| `Name` | `string` | Read-only | Base tool name (excluding the registration prefix). |
+| `Arguments` | `IReadOnlyDictionary<string, object>?` | Read-only | Parsed CLR dictionary of input arguments sent by the caller. Whole numbers are parsed as `long`, floating point as `double`, nested objects as dictionaries. |
+| `Cancel` | `bool` | Read / Write | Set to `true` to cancel tool execution. |
+| `ShowConfirmationDialog` | `bool` | Read / Write | Set to `true` to prompt the user with a browser confirmation dialog prior to running a built-in tool. |
+| `CancellationResponse` | `string?` | Read / Write | Custom message returned to the agent when execution is cancelled or confirmation is declined. |
+| `Result` | `string?` | Read / Write | JSON payload returned to the caller. **Required** for custom tools; overrides built-in tool output when set. |
 
 ```cshtml
-<SfDiagramComponent Height="600px" EnableWebMcp="true" OnWebMcpExecute="HandleWebMcpExecuteAsync">
+@using Syncfusion.Blazor.Diagram
+
+<SfDiagramComponent Width="100%"
+                    Height="600px"
+                    EnableWebMcp="true"
+                    OnWebMcpExecute="HandleWebMcpExecuteAsync">
+    <DiagramWebMcpSettings Name="diagram" />
 </SfDiagramComponent>
 
 @code {
     private Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
     {
         Console.WriteLine($"WebMCP tool requested: {args.Command} ({args.Name})");
+
+        if (args.Arguments != null)
+        {
+            foreach (var kvp in args.Arguments)
+            {
+                Console.WriteLine($" - {kvp.Key}: {kvp.Value}");
+            }
+        }
+
         return Task.CompletedTask;
     }
 }
 ```
 
-The callback runs for every tool call, so keep the logic fast and check `Command` or `Name` before acting.
+---
 
 ## Cancel Tool Execution
 
-Set `Cancel` to `true` to prevent a built-in or custom tool from executing. The tool does not run, and the caller receives the text in `CancellationResponse`.
-
-```cshtml
-@code {
-    private Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
-    {
-        if (args.Command == DiagramWebMcpToolCommand.DeleteFromDiagram)
-        {
-            args.Cancel = true;
-            args.CancellationResponse = "Deleting diagram objects is not allowed.";
-        }
-
-        return Task.CompletedTask;
-    }
-}
-```
-
-Typical use cases:
-
-* Block operations that the current user is not authorized to perform.
-* Keep the diagram read-only while a review or approval is in progress.
-* Enforce application rules, such as a maximum number of nodes.
-
-> To remove a built-in tool permanently, set `Enabled="false"` on its [DiagramWebMcpTool](#customize-built-in-tools) entry. Agents will then not see the tool at all.
-
-## Show Confirmation Dialog
-
-Set `ShowConfirmationDialog` to `true` to ask the user for confirmation in the browser before a built-in tool runs. If the user declines, the tool does not run and the caller receives `CancellationResponse`.
-
-```cshtml
-@code {
-    private Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
-    {
-        if (args.Command == DiagramWebMcpToolCommand.DeleteFromDiagram)
-        {
-            args.ShowConfirmationDialog = true;
-            args.CancellationResponse = "The user declined to delete the selected objects.";
-        }
-
-        return Task.CompletedTask;
-    }
-}
-```
-
-Use confirmation for destructive or hard-to-reverse operations such as `deleteFromDiagram`, or for `exportAndImportDiagrams` when it loads a diagram that replaces the current content. Confirmation applies to built-in tools only. It does not apply to custom tools, so implement your own check inside the callback for those.
-
-## Override Tool Execution
-
-Set `Result` to return your own response instead of running the built-in logic. Because the callback runs before execution, it can intercept any tool and customize its behavior.
-
-```cshtml
-@code {
-    private Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
-    {
-        if (args.Command == DiagramWebMcpToolCommand.GetDiagramCatalog)
-        {
-            args.Result = "{\"success\": true, \"shapes\": [\"Rectangle\", \"Ellipse\", \"Diamond\"]}";
-        }
-
-        return Task.CompletedTask;
-    }
-}
-```
-
-* For a **built-in tool**, setting `Result` skips the built-in execution and returns your payload. Leave `Result` unset to let the built-in tool run normally.
-* For a **custom tool**, `Result` is mandatory because there is no built-in behavior.
-* `Result` must be a valid JSON string. If the JSON object has a `success` member, its value is reported as the success state of the call, so return `"success": false` to report an error.
-
-## Complete Custom Tool Example
-
-The following example registers a custom `addNamedNode` tool that adds a node with a label to the diagram, and validates its arguments before doing so. It also asks for confirmation before `deleteFromDiagram` runs.
+Set `args.Cancel = true` to abort tool execution before it runs. You can also specify an optional `CancellationResponse` explaining why the action was rejected.
 
 ```cshtml
 @using Syncfusion.Blazor.Diagram
-@using System.Text.Json
 
-<SfDiagramComponent @ref="_diagram"
+<SfDiagramComponent Width="100%"
                     Height="600px"
-                    Nodes="@_nodes"
                     EnableWebMcp="true"
                     OnWebMcpExecute="HandleWebMcpExecuteAsync">
-    <DiagramWebMcpSettings>
+    <DiagramWebMcpSettings Name="diagram" />
+</SfDiagramComponent>
+
+@code {
+    private Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
+    {
+        // Prevent deletion of diagram elements based on business rules
+        if (args.Command == DiagramWebMcpToolCommand.DeleteFromDiagram)
+        {
+            args.Cancel = true;
+            args.CancellationResponse = "Deleting diagram objects is disabled in this view.";
+            return Task.CompletedTask;
+        }
+
+        // Validate arguments before executing
+        if (args.Command == DiagramWebMcpToolCommand.CreateDiagramNode &&
+            args.Arguments != null &&
+            args.Arguments.TryGetValue("shapeFamily", out object? family) &&
+            family?.ToString() == "html")
+        {
+            args.Cancel = true;
+            args.CancellationResponse = "Policy error: HTML template nodes cannot be created via AI.";
+        }
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+Use cancellation to:
+* Enforce application-level permissions and role-based access control.
+* Restrict editing during read-only sessions or review modes.
+* Block forbidden node shapes, dimensions, or connectors.
+
+---
+
+## Show Confirmation Dialog
+
+Set `args.ShowConfirmationDialog = true` to prompt the user with a browser confirmation dialog before a built-in tool executes.
+
+```cshtml
+@using Syncfusion.Blazor.Diagram
+
+<SfDiagramComponent Width="100%"
+                    Height="600px"
+                    EnableWebMcp="true"
+                    OnWebMcpExecute="HandleWebMcpExecuteAsync">
+    <DiagramWebMcpSettings Name="diagram" />
+</SfDiagramComponent>
+
+@code {
+    private Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
+    {
+        // Require user confirmation before destructive actions
+        if (args.Command == DiagramWebMcpToolCommand.DeleteFromDiagram ||
+            args.Command == DiagramWebMcpToolCommand.ManageClipboardOperations)
+        {
+            args.ShowConfirmationDialog = true;
+            args.CancellationResponse = "The user declined the operation prompt.";
+        }
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+* If the user **confirms**, the tool executes normally against the diagram.
+* If the user **cancels**, the tool is aborted and the agent receives the message specified in `CancellationResponse`.
+* `ShowConfirmationDialog` applies to built-in tools.
+
+---
+
+## Override Tool Execution
+
+You can intercept any built-in tool call and return a custom result by assigning a valid JSON string to `args.Result`. When `args.Result` is populated, the Diagram skips its internal execution switch and directly returns your result to the caller:
+
+```cshtml
+@using System.Text.Json
+@using Syncfusion.Blazor.Diagram
+
+<SfDiagramComponent Width="100%"
+                    Height="600px"
+                    EnableWebMcp="true"
+                    OnWebMcpExecute="HandleWebMcpExecuteAsync">
+    <DiagramWebMcpSettings Name="diagram" />
+</SfDiagramComponent>
+
+@code {
+    private Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
+    {
+        // Intercept catalog discovery and provide custom catalog metadata
+        if (args.Command == DiagramWebMcpToolCommand.GetDiagramCatalog)
+        {
+            var customCatalog = new
+            {
+                allowedShapes = new[] { "Rectangle", "Circle", "Diamond" },
+                maxNodes = 50,
+                customTheme = "CorporateBlue"
+            };
+
+            args.Result = JsonSerializer.Serialize(customCatalog);
+        }
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+---
+
+## Complete Custom Tool Example
+
+The following complete sample demonstrates:
+1. Registering both built-in and custom tools with `<DiagramWebMcpSettings>`.
+2. Defining a JSON Schema for custom tool parameters.
+3. Reading typed arguments in `OnWebMcpExecute`.
+4. Creating a diagram node programmatically in response to a custom tool call.
+5. Returning structured JSON results.
+
+```cshtml
+@using System.Text.Json
+@using Syncfusion.Blazor.Diagram
+
+<SfDiagramComponent @ref="_diagram"
+                    Width="100%"
+                    Height="650px"
+                    EnableWebMcp="true"
+                    OnWebMcpExecute="HandleWebMcpExecuteAsync">
+    <DiagramWebMcpSettings Name="workflow">
         <DiagramWebMcpTools>
-            <DiagramWebMcpTool Command="DiagramWebMcpToolCommand.Custom"
-                               Name="addNamedNode"
-                               Description="Adds a rectangle node with the given label at the given position."
-                               InputSchema="@_addNamedNodeSchema" />
+            <!-- Built-in tool -->
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.GetDiagramCatalog" />
+
+            <!-- Custom tool to add a specialized process step -->
+            <DiagramWebMcpTool Command="@DiagramWebMcpToolCommand.Custom"
+                               Name="addProcessStep"
+                               Description="Creates a new styled step node in the process diagram."
+                               InputSchema="@_addStepSchema" />
         </DiagramWebMcpTools>
     </DiagramWebMcpSettings>
 </SfDiagramComponent>
 
 @code {
-    private SfDiagramComponent _diagram;
-    private DiagramObjectCollection<Node> _nodes = new DiagramObjectCollection<Node>();
-    private int _count;
+    private SfDiagramComponent? _diagram;
 
-    private const string _addNamedNodeSchema = """
+    private readonly string _addStepSchema = JsonSerializer.Serialize(new
     {
-      "type": "object",
-      "properties": {
-        "label": { "type": "string", "description": "Text shown in the node." },
-        "x": { "type": "number", "description": "Horizontal offset of the node center." },
-        "y": { "type": "number", "description": "Vertical offset of the node center." }
-      },
-      "required": ["label", "x", "y"],
-      "additionalProperties": false
-    }
-    """;
+        type = "object",
+        properties = new
+        {
+            title = new { type = "string", description = "The step title." },
+            x = new { type = "number", description = "The X coordinate." },
+            y = new { type = "number", description = "The Y coordinate." }
+        },
+        required = new[] { "title", "x", "y" }
+    });
 
     private async Task HandleWebMcpExecuteAsync(DiagramWebMcpExecuteEventArgs args)
     {
-        // Ask the user before any object is deleted.
+        // Safeguard destructive built-in operations
         if (args.Command == DiagramWebMcpToolCommand.DeleteFromDiagram)
         {
             args.ShowConfirmationDialog = true;
-            args.CancellationResponse = "The user declined to delete the selected objects.";
+            args.CancellationResponse = "User declined deletion.";
             return;
         }
 
-        if (args.Command != DiagramWebMcpToolCommand.Custom || args.Name != "addNamedNode")
+        // Handle custom tool
+        if (args.Command == DiagramWebMcpToolCommand.Custom && args.Name == "addProcessStep")
         {
-            return;
-        }
+            if (args.Arguments == null)
+            {
+                args.Result = JsonSerializer.Serialize(new { success = false, message = "Missing arguments." });
+                return;
+            }
 
-        // Read and validate the arguments.
-        if (!args.Arguments.TryGetValue("label", out var labelValue) || labelValue is not string label
-            || string.IsNullOrWhiteSpace(label)
-            || !args.Arguments.TryGetValue("x", out var xValue)
-            || !args.Arguments.TryGetValue("y", out var yValue))
-        {
+            string title = args.Arguments.TryGetValue("title", out object? t) ? t?.ToString() ?? "Step" : "Step";
+            double x = args.Arguments.TryGetValue("x", out object? xv) && xv != null ? Convert.ToDouble(xv) : 100;
+            double y = args.Arguments.TryGetValue("y", out object? yv) && yv != null ? Convert.ToDouble(yv) : 100;
+
+            string nodeId = $"step_{Guid.NewGuid():N}";
+
+            var node = new Node
+            {
+                ID = nodeId,
+                OffsetX = x,
+                OffsetY = y,
+                Width = 140,
+                Height = 60,
+                Shape = new BasicShape { Type = NodeShapes.Basic, Shape = BasicShapeType.Rectangle },
+                Style = new ShapeStyle { Fill = "#EBF4FF", StrokeColor = "#3182CE", StrokeWidth = 2 },
+                Annotations = new DiagramObjectCollection<ShapeAnnotation>
+                {
+                    new ShapeAnnotation { Content = title, Style = new TextStyle { Color = "#1A202C", Bold = true } }
+                }
+            };
+
+            if (_diagram != null)
+            {
+                await _diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase> { node });
+            }
+
+            // Return structured response
             args.Result = JsonSerializer.Serialize(new
             {
-                success = false,
-                error = "The 'label', 'x' and 'y' arguments are required."
+                success = true,
+                createdNodeId = nodeId,
+                offsetX = x,
+                offsetY = y
             });
-            return;
         }
-
-        double x = Convert.ToDouble(xValue);
-        double y = Convert.ToDouble(yValue);
-        string id = "node" + (++_count);
-
-        var node = new Node
-        {
-            ID = id,
-            OffsetX = x,
-            OffsetY = y,
-            Width = 120,
-            Height = 60,
-            Annotations = new DiagramObjectCollection<ShapeAnnotation>
-            {
-                new ShapeAnnotation { Content = label }
-            }
-        };
-        await _diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase> { node });
-
-        // Return a structured JSON result.
-        args.Result = JsonSerializer.Serialize(new
-        {
-            success = true,
-            nodeId = id,
-            label,
-            x,
-            y
-        });
     }
 }
 ```
 
+---
+
 ## API Reference
 
-### SfDiagramComponent
+### `SfDiagramComponent`
 
-| Member | Type | Description | Default |
+| Property / Method | Type | Description | Default |
 |---|---|---|---|
-| `EnableWebMcp` | `bool` | Enables registration of WebMCP tools for the diagram. | `false` |
-| `OnWebMcpExecute` | `EventCallback<DiagramWebMcpExecuteEventArgs>` | Callback invoked before a built-in or custom WebMCP tool executes. | `null` |
-| `GetWebMcpToolsAsync(IEnumerable<string> toolNames = null)` | `Task<IReadOnlyList<IDiagramWebMcpTool>>` | Returns the metadata of the registered tools. Pass tool names to filter the result. | - |
+| `EnableWebMcp` | `bool` | Enables or disables WebMCP tool registration for this diagram instance. | `false` |
+| `OnWebMcpExecute` | `EventCallback<DiagramWebMcpExecuteEventArgs>` | Event callback invoked before any WebMCP tool executes. | `default` |
+| `GetWebMcpToolsAsync(IEnumerable<string>? toolNames = null)` | `Task<IReadOnlyList<IDiagramWebMcpTool>>` | Returns read-only metadata (`Name`, `Description`, `InputSchema`) of registered tools. | — |
 
-### DiagramWebMcpSettings
+---
 
-Child component of `SfDiagramComponent` used to configure the tool set.
+### `DiagramWebMcpSettings`
 
-| Member | Type | Description | Default |
+| Property | Type | Description | Default |
 |---|---|---|---|
-| `ChildContent` | `RenderFragment` | Contains the `DiagramWebMcpTools` collection. | `null` |
-| `Name` | `string` | Prefix that identifies this diagram's tool set when the tools are registered in the browser. For example, `Name="diagram"` registers `diagram_createDiagramNode`. | `string.Empty` |
+| `Name` | `string` | Prefix namespace identifying the diagram instance's tools in the browser registry (e.g., `Name="diagram"` produces names like `diagram_createDiagramNode`). | `string.Empty` |
+| `ChildContent` | `RenderFragment?` | Contains `<DiagramWebMcpTools>` defining the selective tool catalog. When omitted or empty, all 18 built-in tools are registered. | `null` |
 
-When the `DiagramWebMcpTools` collection is empty or omitted, every built-in tool is registered.
+---
 
-### DiagramWebMcpTools
+### `DiagramWebMcpTools`
 
-| Member | Type | Description | Default |
+| Property | Type | Description | Default |
 |---|---|---|---|
-| `ChildContent` | `RenderFragment` | Contains the `DiagramWebMcpTool` entries. | `null` |
+| `ChildContent` | `RenderFragment?` | Contains the collection of `<DiagramWebMcpTool>` elements. | `null` |
 
-### DiagramWebMcpTool
+---
 
-| Member | Type | Description | Default |
+### `DiagramWebMcpTool`
+
+| Property | Type | Description | Default |
 |---|---|---|---|
-| `Command` | `DiagramWebMcpToolCommand` | Selects a built-in command, or `Custom` to declare a custom tool. | - |
-| `Name` | `string` | Overrides the registered name of a built-in tool. Required for custom tools. | Canonical name of the command |
-| `Description` | `string` | Overrides the description of a built-in tool. Required for custom tools. | Canonical description of the command |
-| `Enabled` | `bool` | Indicates whether the tool is registered. Set to `false` to omit it. | `true` |
-| `InputSchema` | `string` | JSON Schema string describing the input arguments. Required for custom tools. | Built-in schema for built-in commands |
+| `Command` | `DiagramWebMcpToolCommand` | Selects a built-in command or specifies `Custom` for application-defined tools. *(Required)* | — |
+| `Name` | `string?` | Overrides the canonical tool name. Required when `Command="DiagramWebMcpToolCommand.Custom"`. | `null` |
+| `Description` | `string?` | Overrides the canonical tool description. Required when `Command="DiagramWebMcpToolCommand.Custom"`. | `null` |
+| `InputSchema` | `string?` | JSON Schema string describing input arguments. Required for `Custom` tools. | Canonical schema |
+| `Enabled` | `bool` | When `false`, omits the tool from browser registration while still validating configuration. | `true` |
 
-A command can be declared only once. A custom entry without `Name`, `Description`, or `InputSchema` is not valid.
+---
 
-### DiagramWebMcpToolCommand
+### `DiagramWebMcpToolCommand`
 
-| Member | Registered tool name |
-|---|---|
-| `Custom` | Supplied through `Name` |
-| `GetDiagramCatalog` | `getDiagramCatalog` |
-| `CreateDiagramNode` | `createDiagramNode` |
-| `CreateDiagramConnector` | `createDiagramConnector` |
-| `DragNode` | `dragNode` |
-| `ManageNodeSelection` | `manageNodeSelection` |
-| `EnableEditingMode` | `enableEditingMode` |
-| `ArrangeAndAlignObjects` | `arrangeAndAlignObjects` |
-| `DeleteFromDiagram` | `deleteFromDiagram` |
-| `ManageUndoRedo` | `manageUndoRedo` |
-| `ManageClipboardOperations` | `manageClipboardOperations` |
-| `ExportAndImportDiagrams` | `exportAndImportDiagrams` |
-| `ArrangeZOrder` | `arrangeZOrder` |
-| `NavigateAndZoomDiagram` | `navigateAndZoomDiagram` |
-| `ManageGroupsAndHierarchies` | `manageGroupsAndHierarchies` |
-| `ManageAnnotationsAndLabels` | `manageAnnotationsAndLabels` |
-| `ManagePorts` | `managePorts` |
-| `ApplyLayoutToNodes` | `applyLayoutToNodes` |
-| `CreateUmlSequenceDiagram` | `createUmlSequenceDiagram` |
-
-### DiagramWebMcpExecuteEventArgs
-
-| Member | Type | Description | Default |
+| Member | Canonical Name | Annotations | Description |
 |---|---|---|---|
-| `Command` | `DiagramWebMcpToolCommand` | The command that triggered the call. `Custom` for custom tools. | - |
-| `Name` | `string` | Tool name. For built-in tools, the command enum member name. | - |
-| `Arguments` | `IReadOnlyDictionary<string, object>` | Arguments supplied by the caller, keyed by argument name. | Empty |
-| `Cancel` | `bool` | Cancels the tool execution when `true`. | `false` |
-| `ShowConfirmationDialog` | `bool` | Requests browser confirmation before a built-in tool runs. Not applicable to custom tools. | `false` |
-| `CancellationResponse` | `string` | Message returned when execution is cancelled or confirmation is denied. | `null` |
-| `Result` | `string` | JSON payload returned to the caller. Required for custom tools; overrides the result of built-in tools. | `null` |
+| `Custom` | *(User Defined)* | User-defined | Customer-supplied tool handled through `OnWebMcpExecute`. |
+| `GetDiagramCatalog` | `getDiagramCatalog` | Read-only, Idempotent | Discovers supported shapes, enums, BPMN/UML types, swimlane capabilities, and styling properties. |
+| `CreateDiagramNode` | `createDiagramNode` | Standard | Creates one or more nodes with shapes, geometry, headers, styling, and annotations. |
+| `CreateDiagramConnector` | `createDiagramConnector` | Standard | Creates straight, orthogonal, or bezier connectors between nodes or ports. |
+| `DragNode` | `dragNode` | Standard | Translates nodes or connectors by relative offsets (`tx`, `ty`). |
+| `ManageNodeSelection` | `manageNodeSelection` | Idempotent | Selects objects by ID, selects all, or clears selection (`single`, `multiple`, `all`, `none`). |
+| `EnableEditingMode` | `enableEditingMode` | Destructive, Idempotent | Switches diagram between read-only and interactive read-write modes. |
+| `ArrangeAndAlignObjects` | `arrangeAndAlignObjects` | Standard | Aligns, distributes, or resizes selected diagram objects. |
+| `DeleteFromDiagram` | `deleteFromDiagram` | Destructive | Deletes specified objects, selected objects, or all diagram elements. |
+| `ManageUndoRedo` | `manageUndoRedo` | Destructive | Triggers undo, redo, starts/ends history groups, or clears history stacks. |
+| `ManageClipboardOperations` | `manageClipboardOperations` | Destructive | Performs clipboard copy, cut, or paste on current selection. |
+| `ExportAndImportDiagrams` | `exportAndImportDiagrams` | Destructive | Exports/imports JSON or Mermaid formats; exports PNG, JPEG, SVG, or triggers print. |
+| `ArrangeZOrder` | `arrangeZOrder` | Standard | Moves objects `BringToFront`, `SendToBack`, `BringForward`, or `SendBackward`. |
+| `NavigateAndZoomDiagram` | `navigateAndZoomDiagram` | Idempotent | Viewport navigation: pan, zoom, reset, fit to page, or bring into view. |
+| `ManageGroupsAndHierarchies` | `manageGroupsAndHierarchies` | Standard | Groups or ungroups selected objects or explicit `parentId` / `childIds`. |
+| `ManageAnnotationsAndLabels` | `manageAnnotationsAndLabels` | Standard | Adds, updates, or deletes labels/annotations on nodes or connectors. |
+| `ManagePorts` | `managePorts` | Standard | Adds, removes, or positions connection ports on nodes or connectors. |
+| `ApplyLayoutToNodes` | `applyLayoutToNodes` | Standard | Applies automatic layout algorithms (Hierarchical, Radial, MindMap, OrgChart, etc.). |
+| `CreateUmlSequenceDiagram` | `createUmlSequenceDiagram` | Standard | Generates UML sequence diagrams with participants, messages, and fragments. |
 
-### IDiagramWebMcpTool
+---
 
-Read-only metadata returned by `GetWebMcpToolsAsync`.
+### `DiagramWebMcpExecuteEventArgs`
 
-| Member | Type | Description | Default |
+| Property | Type | Direction | Description |
 |---|---|---|---|
-| `Name` | `string` | The tool name. | - |
-| `Description` | `string` | The human-readable tool description. | - |
-| `InputSchema` | `object` | JSON schema describing the tool input. | - |
+| `Command` | `DiagramWebMcpToolCommand` | Read-only | The command being executed (`Custom` or built-in). |
+| `Name` | `string` | Read-only | Base tool name (excluding the registration prefix). |
+| `Arguments` | `IReadOnlyDictionary<string, object>?` | Read-only | Deep JSON-to-native CLR mapped dictionary of input arguments supplied by the caller. |
+| `Cancel` | `bool` | Read / Write | Set to `true` to cancel tool execution. Default is `false`. |
+| `ShowConfirmationDialog` | `bool` | Read / Write | Set to `true` to display a native browser confirmation prompt before executing a built-in tool. Default is `false`. |
+| `CancellationResponse` | `string?` | Read / Write | Custom response returned to the caller when execution is cancelled or confirmation is rejected. Default is `null`. |
+| `Result` | `string?` | Read / Write | The JSON result payload returned to the WebMCP caller. **Mandatory** for `Custom` tools; optionally overrides built-in tool output. Default is `null`. |
+
+---
+
+### `IDiagramWebMcpTool`
+
+| Property | Type | Description |
+|---|---|---|
+| `Name` | `string` | The base tool name. |
+| `Description` | `string` | The human-readable description of the tool. |
+| `InputSchema` | `object?` | JSON Schema object describing the tool's input parameters. |
+
+---
 
 ## Best Practices
 
-* **Use meaningful tool names.** Choose short, action-oriented names such as `addNamedNode`, so that agents can select the right tool.
-* **Write clear descriptions.** Describe what the tool does and when to use it.
-* **Define clear input schemas.** Specify types, descriptions, and `required` fields, and set `additionalProperties` to `false` where appropriate.
-* **Validate tool arguments.** Arguments come from an external caller. Check for missing and out-of-range values in `OnWebMcpExecute` before using them.
-* **Return structured JSON responses.** Include a `success` flag and a clear `error` message on failure so that agents can recover.
-* **Use confirmation dialogs for destructive operations.** Set `ShowConfirmationDialog` for tools such as `deleteFromDiagram`.
-* **Use cancellation to enforce application-specific rules.** Set `Cancel` with a helpful `CancellationResponse` for operations that are not permitted.
-* **Expose only what is needed.** Disable built-in tools that your application does not want agents to use.
-* **Keep the callback fast.** `OnWebMcpExecute` runs before every tool call.
+* **Use descriptive names and instructions**: When overriding descriptions or defining custom tools, write clear instructions so AI models understand exactly when and how to call the tool.
+* **Define strict input schemas**: Always specify types, descriptions, and `required` fields in your custom JSON schemas to prevent hallucinated arguments.
+* **Validate arguments defensively**: Read arguments from `args.Arguments` using safe pattern matching or `TryGetValue` before applying them to diagram elements.
+* **Protect destructive operations**: Use `args.ShowConfirmationDialog = true` for irreversible operations like `DeleteFromDiagram` or `ManageClipboardOperations`.
+* **Return structured JSON responses**: In custom tools, always assign a serialized JSON object to `args.Result` containing `success` and relevant metadata so agents can reason over the outcome.
+* **Leverage cancellation for security**: Enforce role-based access control or diagram lock states by setting `args.Cancel = true` with a descriptive `args.CancellationResponse`.
+* **Namespace multi-diagram pages**: Always supply a unique `Name` in `<DiagramWebMcpSettings>` when hosting more than one diagram on the same page.
+
+---
 
 ## See Also
 
-* [Undo and Redo](./undo-redo)
-* [Serialization](./serialization)
-* [Events](./events)
+* [Getting Started with Blazor Diagram Component](https://blazor.syncfusion.com/documentation/diagram/getting-started-with-web-app)
+* [Nodes in Blazor Diagram Component](https://blazor.syncfusion.com/documentation/diagram/nodes)
+* [Connectors in Blazor Diagram Component](https://blazor.syncfusion.com/documentation/diagram/connectors)
+* [Automatic Layouts in Blazor Diagram Component](https://blazor.syncfusion.com/documentation/diagram/layout/automatic-layout)
+* [Undo and Redo Support in Blazor Diagram Component](https://blazor.syncfusion.com/documentation/diagram/undo-redo)
