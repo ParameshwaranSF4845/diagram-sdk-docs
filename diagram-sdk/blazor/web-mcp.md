@@ -23,7 +23,7 @@ The Web Model Context Protocol (WebMCP) lets a web page expose its functionality
 * **Lifecycle interception**: Every tool call passes through the `OnWebMcpExecute` event, allowing your application to inspect arguments, enforce security rules, cancel execution, trigger native browser confirmation dialogs, or override results.
 * **Browser namespace prefixing**: Use `DiagramWebMcpSettings.Name` to namespace tool sets for multiple diagram instances on the same page.
 
-### How WebWebMCP clients and AI agents interact with diagrams
+### How WebMCP clients and AI agents interact with diagrams
 
 1. When WebMCP is enabled, the Diagram component registers its tools with the browser's model context.
 2. A WebMCP client or AI agent discovers the registered tools, inspecting their canonical descriptions and input schemas.
