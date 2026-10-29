@@ -192,9 +192,17 @@ The [OnWebMcpExecute](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Di
 | [Name](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpExecuteEventArgs.html#Syncfusion_Blazor_Diagram_DiagramWebMcpExecuteEventArgs_Name) | The tool name, without the registration prefix. |
 | [Arguments](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpExecuteEventArgs.html#Syncfusion_Blazor_Diagram_DiagramWebMcpExecuteEventArgs_Arguments) | The arguments sent by the agent. Whole numbers are `long`, fractional numbers are `double`, and nested objects are dictionaries. |
 | [Cancel](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpExecuteEventArgs.html#Syncfusion_Blazor_Diagram_DiagramWebMcpExecuteEventArgs_Cancel) | Set to `true` to [cancel](#cancel-tool-execution) the call. |
-| [ShowConfirmationDialog](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpExecuteEventArgs.html#Syncfusion_Blazor_Diagram_DiagramWebMcpExecuteEventArgs_ShowConfirmationDialog) | Set to `true` to [ask the user to confirm](#request-user-confirmation) a built-in tool. |
+| [ShowConfirmationDialog](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpExecuteEventArgs.html#Syncfusion_Blazor_Diagram_DiagramWebMcpExecuteEventArgs_ShowConfirmationDialog) | Set to `true` to [ask the user to confirm](#request-user-confirmation) the tool in the browser. |
 | [CancellationResponse](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpExecuteEventArgs.html#Syncfusion_Blazor_Diagram_DiagramWebMcpExecuteEventArgs_CancellationResponse) | The message returned to the agent when the call is cancelled or declined. |
-| [Result](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpExecuteEventArgs.html#Syncfusion_Blazor_Diagram_DiagramWebMcpExecuteEventArgs_Result) | A JSON string returned to the agent. Required for custom tools. For built-in tools, it [overrides](#override-tool-execution) the built-in result. |
+| [Result](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpExecuteEventArgs.html#Syncfusion_Blazor_Diagram_DiagramWebMcpExecuteEventArgs_Result) | A JSON string returned to the agent. Required for custom tools. For built-in tools, it [overrides](#override-tool-execution) the built-in result, and the built-in operation does not run. |
+
+The callback runs before every built-in and custom tool, and the component processes it in the following order:
+
+1. The callback is invoked and the application inspects the call.
+2. If `args.Cancel` is `true`, the call is stopped and the agent receives `args.CancellationResponse`.
+3. If `args.ShowConfirmationDialog` is `true`, the user is asked to confirm the call in the browser. A declined confirmation stops the call.
+4. If `args.Result` is set, the value is returned to the agent and the built-in operation does not run.
+5. Otherwise, the built-in tool runs and returns its result to the agent.
 
 ```cshtml
 @using Syncfusion.Blazor.Diagram
@@ -262,11 +270,13 @@ Set `args.ShowConfirmationDialog` to `true` to ask the user to confirm a built-i
 }
 ```
 
-N> `ShowConfirmationDialog` applies to built-in tools only.
+N> The confirmation prompt is shown for built-in and custom tools. When the user declines, the tool does not run and the agent receives `args.CancellationResponse`.
 
 ### Override tool execution
 
-Set `args.Result` to a JSON string to replace the result of a built-in tool. The callback runs before the built-in execution, so the application can customize the behavior of any tool.
+Set `args.Result` to a JSON string to replace the result of a tool. The callback runs before the built-in execution, so the application can take over a tool and return its own response.
+
+N> When you set `args.Result` for a built-in tool, the built-in operation does not run. The value you set is returned to the agent as the tool result. Leave `args.Result` unset to let the built-in tool run normally.
 
 ```cshtml
 @using System.Text.Json
