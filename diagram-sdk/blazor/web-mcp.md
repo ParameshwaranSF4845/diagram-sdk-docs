@@ -511,8 +511,8 @@ The following example registers a custom tool with an input schema, reads its ar
 
 ## See also
 
-* [Getting started with Blazor Diagram](https://blazor.syncfusion.com/documentation/diagram/getting-started-with-web-app)
-* [Nodes in Blazor Diagram](https://blazor.syncfusion.com/documentation/diagram/nodes/nodes)
-* [Connectors in Blazor Diagram](https://blazor.syncfusion.com/documentation/diagram/connectors/connectors)
-* [Automatic layout in Blazor Diagram](https://blazor.syncfusion.com/documentation/diagram/layout/automatic-layout)
-* [Undo and redo in Blazor Diagram](https://blazor.syncfusion.com/documentation/diagram/undo-redo)
+* [Getting started with Blazor Diagram](./getting-started-with-web-app)
+* [Nodes in Blazor Diagram](./nodes/nodes)
+* [Connectors in Blazor Diagram](./connectors/connectors)
+* [Automatic layout in Blazor Diagram](./layout/automatic-layout)
+* [Undo and redo in Blazor Diagram](./undo-redo)
