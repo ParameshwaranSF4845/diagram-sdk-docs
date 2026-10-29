@@ -44,6 +44,7 @@ Set the [EnableWebMcp](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.D
 * `EnableWebMcp` is `false` by default. When it is `false`, no tools are registered.
 * When it is `true`, the diagram registers its tools so that MCP clients and AI agents can discover them.
 * **All built-in tools become available automatically.** You do not need to declare them. To rename, describe differently, or hide individual built-in tools, use [DiagramWebMcpSettings](#customize-built-in-tools).
+* Registered tool names in the browser are prefixed with the `Name` of `DiagramWebMcpSettings` (for example, `myDiagram_getDiagramCatalog`). `GetWebMcpToolsAsync` and `OnWebMcpExecute` use the bare name without the prefix.
 * Tools are unregistered when `EnableWebMcp` is set to `false` or the component is disposed.
 
 ## Built-in WebMCP Tools
@@ -418,7 +419,7 @@ Child component of `SfDiagramComponent` used to configure the tool set.
 | Member | Type | Description | Default |
 |---|---|---|---|
 | `ChildContent` | `RenderFragment` | Contains the `DiagramWebMcpTools` collection. | `null` |
-| `Name` | `string` | Name used to identify the WebMCP tool set. | `null` |
+| `Name` | `string` | Prefix that identifies this diagram's tool set when the tools are registered in the browser. For example, `Name="diagram"` registers `diagram_createDiagramNode`. | `string.Empty` |
 
 When the `DiagramWebMcpTools` collection is empty or omitted, every built-in tool is registered.
 
@@ -484,7 +485,7 @@ Read-only metadata returned by `GetWebMcpToolsAsync`.
 |---|---|---|---|
 | `Name` | `string` | The tool name. | - |
 | `Description` | `string` | The human-readable tool description. | - |
-| `InputSchema` | `string` | JSON schema describing the tool input. | - |
+| `InputSchema` | `object` | JSON schema describing the tool input. | - |
 
 ## Best Practices
 
