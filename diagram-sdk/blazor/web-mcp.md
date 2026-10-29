@@ -47,6 +47,43 @@ Set the [EnableWebMcp](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.D
 * The [Name](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpSettings.html#Syncfusion_Blazor_Diagram_DiagramWebMcpSettings_Name) property is used as a prefix when the tools are registered in the browser. Set a unique value when a page hosts more than one diagram.
 * The tools are unregistered when `EnableWebMcp` is set to `false` or when the component is disposed.
 
+## Run a first example
+
+The quickest way to see WebMCP working is to render a small diagram and enable WebMCP on it. Connect an AI assistant that supports WebMCP to the page, and ask it to add a node to the diagram.
+
+```cshtml
+@using Syncfusion.Blazor.Diagram
+
+<SfDiagramComponent Width="100%" Height="600px"
+                    Nodes="@_nodes"
+                    EnableWebMcp="true">
+    <DiagramWebMcpSettings Name="diagram" />
+</SfDiagramComponent>
+
+@code
+{
+    // Defines the diagram's node collection.
+    private DiagramObjectCollection<Node> _nodes = new DiagramObjectCollection<Node>();
+
+    protected override void OnInitialized()
+    {
+        _nodes.Add(new Node()
+        {
+            ID = "node1",
+            OffsetX = 250,
+            OffsetY = 250,
+            Width = 120,
+            Height = 60,
+            Style = new ShapeStyle() { Fill = "#6495ED" }
+        });
+    }
+}
+```
+
+With this in place, the diagram is ready for an agent to work with. The agent can read the diagram, add nodes, connect them, and apply a layout, using the built-in tools that are registered automatically.
+
+N> WebMCP tools are registered with the browser through the `document.modelContext` interface. In a browser that does not support this interface, the diagram renders and behaves normally, and the tools are simply not registered.
+
 ## Built-in WebMCP tools
 
 The built-in tools are identified by the [DiagramWebMcpToolCommand](https://help.syncfusion.com/cr/blazor/Syncfusion.Blazor.Diagram.DiagramWebMcpToolCommand.html) enum. The following table lists each value, its purpose, and a typical usage scenario. The enum members and their detailed descriptions are listed in the [API reference](#api-reference).
@@ -406,7 +443,7 @@ The following example registers a custom tool with an input schema, reads its ar
                 OffsetY = y,
                 Width = 140,
                 Height = 60,
-                Shape = new BasicShape { Type = NodeShapes.Basic, Shape = BasicShapeType.Rectangle },
+                Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle },
                 Style = new ShapeStyle { Fill = "#EBF4FF", StrokeColor = "#3182CE", StrokeWidth = 2 },
                 Annotations = new DiagramObjectCollection<ShapeAnnotation>
                 {
